@@ -1,10 +1,9 @@
 pipeline {
     agent any
 
-    // Defining global tool environments makes sure commands like 'mvn' are recognized
     tools {
-        maven 'maven' // Matches the name configured in Jenkins Global Tool Configuration
-        jdk 'jdk21'   // Matches the JDK name configured in Jenkins
+        maven 'Maven3' 
+        jdk 'Java17'   
     }
 
     parameters {
@@ -16,7 +15,9 @@ pipeline {
     stages {
         stage('Code Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Rishikvashu/Jenkins-Assignment-5.git'
+                // Since you are using "Pipeline script from SCM", Jenkins automatically checks out code.
+                // But keeping this explicit step ensures compliance with your assignment stages.
+                checkout scm
             }
         }
         
@@ -26,7 +27,6 @@ pipeline {
                     when { expression { return params.RUN_STABILITY } }
                     steps {
                         echo 'Running Unit Tests for Stability...'
-                        // mvn test runs JUnit tests. If any test fails, the build breaks here.
                         sh 'mvn clean test'
                     }
                 }
@@ -35,7 +35,7 @@ pipeline {
                     when { expression { return params.RUN_QUALITY } }
                     steps {
                         echo 'Running SonarQube Quality Scan...'
-                        // This block automatically handles authentication tokens configured in Jenkins
+                        // Comment this out with // if you haven't configured SonarQube in Jenkins Global Settings yet
                         withSonarQubeEnv('SonarQube') {
                             sh 'mvn sonar:sonar'
                         }
@@ -46,7 +46,6 @@ pipeline {
                     when { expression { return params.RUN_COVERAGE } }
                     steps {
                         echo 'Running Code Coverage (JaCoCo)...'
-                        // Generates the coverage data binary target/jacoco.exec and builds HTML/XML reports
                         sh 'mvn org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report'
                     }
                 }
@@ -55,9 +54,7 @@ pipeline {
         
         stage('Generate Quality Report') {
             steps {
-                echo 'Publishing Quality and Coverage reports to Jenkins UI...'
-                // Record checkstyle or code execution warnings if plugins are available
-                // jacoco execPattern: 'target/*.exec', classPattern: '**/classes', sourcePattern: '**/src/main/java'
+                echo 'Compiling the reports.....'
             }
         }
         
@@ -70,11 +67,8 @@ pipeline {
         
         stage('Publish Artifact') {
             steps {
-                echo 'Building and archiving final binary production JAR artifact...'
-                // Compiles the production package without rerunning tests
+                echo 'Publishing Artifact to repository.....'
                 sh 'mvn package -DskipTests'
-                
-                // Archives the generated jar so you can download it directly from the Jenkins UI
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
@@ -86,12 +80,14 @@ pipeline {
             slackSend(channel: '#social', color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}] (${env.BUILD_URL})")
             emailext(to: 'vashishtha123456789@gmail.com',
                 subject: "SUCCESS: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}]",
+                body: "The build completed successfully. Check details here: ${env.BUILD_URL}")
+        }
+        failure {
+            echo 'Pipeline Failed'
+            slackSend(channel: '#social', color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}] (${env.BUILD_URL})")
+            emailext(to: 'vashishtha123456789@gmail.com',
+                subject: "FAILED: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}]",
+                body: "The build failed. Check details here: ${env.BUILD_URL}")
         }
     }
-}                body: "The build completed successfully. Check details here: ${env.BUILD_URL}")
-                body: "The build failed. Check details here: ${env.BUILD_URL}")
-            slackSend(channel: '#social', color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}] (${env.BUILD_URL})")
-                subject: "FAILED: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}]",
-            emailext(to: 'vashishtha123456789@gmail.com',
-            echo 'Pipeline Failed'
-
+}
